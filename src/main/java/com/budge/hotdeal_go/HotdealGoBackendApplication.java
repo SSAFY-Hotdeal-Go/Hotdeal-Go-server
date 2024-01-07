@@ -24,8 +24,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import com.budge.hotdeal_go.model.dto.HotDealDto;
 import com.budge.hotdeal_go.model.dto.KeywordDto;
+import com.budge.hotdeal_go.model.dto.NotiBasketDto;
 import com.budge.hotdeal_go.model.service.FCMService;
+import com.budge.hotdeal_go.model.service.FirebaseService;
 import com.budge.hotdeal_go.model.service.SearchService;
+import com.google.firebase.messaging.FirebaseMessagingException;
 
 @SpringBootApplication
 public class HotdealGoBackendApplication {
@@ -33,32 +36,42 @@ public class HotdealGoBackendApplication {
 	private static SearchService searchService;
 
 	private static FCMService fcmService;
+	private static FirebaseService firebaseService;
 
-	private static List<String> tmpList;
+	private static List<HotDealDto> allSiteInfo;
 	private static List<KeywordDto> keywordList;
 
 	@Autowired
-	public HotdealGoBackendApplication(SearchService searchService, FCMService fcmService) {
+	public HotdealGoBackendApplication(SearchService searchService, FCMService fcmService, FirebaseService firebaseService) {
 		super();
 		HotdealGoBackendApplication.searchService = searchService;
 		HotdealGoBackendApplication.fcmService = fcmService;
+		HotdealGoBackendApplication.firebaseService = firebaseService;
 	}
 
 	public static void main(String[] args) throws IOException {
 		SpringApplication.run(HotdealGoBackendApplication.class, args);
 
-		startThread();
+		// WAS가 시작하게 되면, 쓰레드(1)을 시작한다.
+		startOneThread();
 	}
 
-	private static void startThread() {
+	// 쓰레드(1)
+	// To Do: 크롤링과 알림 서비스를 실행한다.
+	private static void startOneThread() {
 		ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-		// 크롤링 작업을 수행하는 Runnable (쓰레드 추가)
+		// 실질적인 쓰레드
 		Runnable crawlingTask = () -> {
-			// DB 최신화 작업
 			try {
+				// 크롤링과 DB TASK
 				crawlAndSaveData();
+
+				// 알림 서비스 TASK(1)
 				checkNotiService();
+
+				// 알림 서비스 TASK(2)
+				sendNotiSerive();
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
@@ -69,10 +82,15 @@ public class HotdealGoBackendApplication {
 		scheduler.scheduleAtFixedRate(crawlingTask, 0, 15, TimeUnit.MINUTES);
 	}
 
+	// 크롤링과 DB TASK 메서드
+	// To Do : 모든 사이트를 하나씩 수행하여 정보를 가져오고 디비에 최신화 작업을 시작한다.
 	private static void crawlAndSaveData() throws SQLException {
 		System.out.println("[쓰레드] 설정한 3개의 커뮤니티를 크롤링합니다.");
 
-		tmpList = new ArrayList<>();
+		// 알림 서비스 TASK를 위한 allSiteInfo 초기화
+		allSiteInfo = new ArrayList<>();
+
+		// 각 사이트 별 리스트
 		List<HotDealDto> fmKorea = getFmKorea();
 		List<HotDealDto> quasarZone = getQuasarZone();
 		List<HotDealDto> ruliweb = getRuliweb();
@@ -109,16 +127,22 @@ public class HotdealGoBackendApplication {
 			else
 				System.out.println("루리웹 실패");
 		}
+
+		// 모든 사이트 별로 정보를 받아왔다면, allSiteInfo에 삽입
+		allSiteInfo.addAll(fmKorea);
+		allSiteInfo.addAll(quasarZone);
+		allSiteInfo.addAll(ruliweb);
 	}
 
-	// 알림을 보낼지 안 보낼지 결정하는 메서드
+	// 알림 서비스 TASK 메서드(1)
+	// To do : 15분마다 크롤링한 정보를 확인하여 noti_basket 테이블에 삽입한다.
 	private static void checkNotiService() throws SQLException {
 
 		// 먼저, 등록된 키워드 리스트들을 조회
 		keywordList = fcmService.getKeywordAll();
 
-		// 키워드와 사용자 ID 목록을 매핑하는 Map을 생성 --> 효율성 개선 (1)
-		Map<String, List<String>> keywordToUserIdsMap = new HashMap<>();
+		// 키워드와 사용자 ID 목록을 매핑하는 Map을 생성
+		Map<String, List<String>> map = new HashMap<>();
 
 		// keywordList를 순회하여 Map에 삽입
 		for (KeywordDto kDto : keywordList) {
@@ -126,22 +150,53 @@ public class HotdealGoBackendApplication {
 			String userId = kDto.getUserId();
 
 			// Map에 사용자 ID 추가
-			keywordToUserIdsMap.computeIfAbsent(keyword, k -> new ArrayList<>()).add(userId);
+			map.computeIfAbsent(keyword, k -> new ArrayList<>()).add(userId);
 		}
 
 		// 10분마다 가져온 데이터(제목)들을 모두 키워드와 일치하는지 비교 시작
-		for (String title : tmpList) {
-			for (Entry<String, List<String>> entry : keywordToUserIdsMap.entrySet()) {
+		for (HotDealDto dto : allSiteInfo) {
+			String title = dto.getTitle();
 
-				// 만약 포함되어 있다면, 사용자 ID를 확인하여 알림 전송
+			for (Entry<String, List<String>> entry : map.entrySet()) {
+
+				// 제목에 키워드 이름이 존재한다면
 				if (title.toLowerCase().contains(entry.getKey())) {
 					List<String> userIds = entry.getValue();
 
+					// 해당하는 사용자 아이디를 가져온다.
 					for (String userId : userIds) {
-						System.out.println(title);
-						System.out.println(userId);
+						// System.out.println(title);
+						// System.out.println(userId);
+
+						// noti_basket 테이블에 삽입한다.
+						NotiBasketDto notiBasketDto = new NotiBasketDto();
+						notiBasketDto.setTitle(title);
+						notiBasketDto.setUserId(userId);
+						notiBasketDto.setAddress(dto.getUrl());
+
+						fcmService.registNoti(notiBasketDto);
 					}
 				}
+			}
+		}
+	}
+
+	// 알림 서비스 TASK 메서드(2)
+	// To do : noti_basket 테이블의 데이터들 중에 보내야되는 알림을 확인하여 클라이언트에게 PUSH한다.
+	private static void sendNotiSerive() throws SQLException {
+		List<NotiBasketDto> list = fcmService.getNotiBasketAll();
+
+		for(NotiBasketDto dto : list){
+			String fcmToken = fcmService.getFcmToken(dto.getUserId());
+
+			if(fcmToken == null || fcmToken.equals("")) continue;
+
+			try{
+				firebaseService.sendNotification(dto.getAddress(), fcmToken);
+			}catch(FirebaseMessagingException e){
+				System.out.println(dto.getUserId()+"님의 FCM 토큰이 만료 또는 오류가 발생했습니다.");
+				e.printStackTrace();
+				System.out.println("--------------------------------------------------------------------------------------------------");
 			}
 		}
 	}
@@ -245,13 +300,8 @@ public class HotdealGoBackendApplication {
 				String pattern = "\\s*\\[[^\\]]*\\]\\s*";
 				Pattern p = Pattern.compile(pattern);
 				Matcher m = p.matcher(title.text());
-				dto.setTitle(m.replaceAll("").trim());
-				try {
-					tmpList.add(m.replaceAll("").trim());
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
 
+				dto.setTitle(m.replaceAll("").trim());
 				dto.setPrice(prices.get(i).selectFirst("a").text().replace("원", "").trim());
 				dto.setUrl("https://www.fmkorea.com" + title.attr("href"));
 				dto.setShippingFee(shippingFees.get(i).selectFirst("a").text());
@@ -313,21 +363,13 @@ public class HotdealGoBackendApplication {
 
 				Matcher matcher = pattern.matcher(str);
 				if (matcher.find()) {
-					// String title = str.replaceFirst("\\[([^\\]]+)\\]", "").trim();
-					// if (title.equals("") || title == null)
-					// continue;
-					// dto.setTitle(title);
-
 					String marketName = matcher.group(1);
 					dto.setPurchasingPlace(marketName.replace("[", "").replace("]", "").trim());
 				}
 
 				dto.setTitle(tr.select("span.ellipsis-with-reply-cnt").text());
-				tmpList.add(new String(tr.select("span.ellipsis-with-reply-cnt").text()));
-
 				String price = tr.select("span.text-orange").text();
 				dto.setPrice(price.replace("￦", "").replace("(KRW)", "").trim());
-
 				dto.setShippingFee(tr.select("span:contains(배송비)").text().replace("배송비", "").trim());
 				dto.setLikeCnt(Long.parseLong(tr.select("span.num").text()));
 				dto.setUrl("https://quasarzone.com" + tr.select("a.subject-link").attr("href"));
@@ -389,7 +431,6 @@ public class HotdealGoBackendApplication {
 						continue;
 					}
 					dto.setTitle(title);
-					tmpList.add(new String(title));
 
 					String marketName = matcher.group(1);
 					dto.setPurchasingPlace(marketName.replace("[", "").replace("]", "").trim());

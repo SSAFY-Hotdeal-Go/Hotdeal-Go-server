@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.budge.hotdeal_go.model.dto.KeywordDto;
+import com.budge.hotdeal_go.model.dto.NotiBasketDto;
 
 @Mapper
 public interface FCMMapper {
@@ -23,4 +24,8 @@ public interface FCMMapper {
     public void registKeyword(@Param("userId")String userId, @Param("keywordName")String keywordName) throws SQLException;
 
     public void removeKeyword(@Param("userId")String userId, @Param("keywordName")String keywordName) throws SQLException;
+
+    public void registNoti(NotiBasketDto dto) throws SQLException;
+
+    public List<NotiBasketDto> getNotiBasketAll() throws SQLException;
 }

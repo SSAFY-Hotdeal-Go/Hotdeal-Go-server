@@ -3,10 +3,12 @@ package com.budge.hotdeal_go.model.service;
 import java.sql.SQLException;
 import java.util.List;
 
+import org.checkerframework.checker.units.qual.m;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.budge.hotdeal_go.model.dto.KeywordDto;
+import com.budge.hotdeal_go.model.dto.NotiBasketDto;
 import com.budge.hotdeal_go.model.mapper.FCMMapper;
 
 @Service
@@ -53,5 +55,15 @@ public class FCMServiceImpl implements FCMService {
     @Override
     public void removeKeyword(String userId, String keywordName) throws SQLException {
         mapper.removeKeyword(userId, keywordName);
+    }
+
+    @Override
+    public void registNoti(NotiBasketDto dto) throws SQLException {
+        mapper.registNoti(dto);
+    }
+
+    @Override
+    public List<NotiBasketDto> getNotiBasketAll() throws SQLException {
+        return mapper.getNotiBasketAll();
     }
 }

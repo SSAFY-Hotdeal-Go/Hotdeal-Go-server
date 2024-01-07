@@ -11,22 +11,30 @@
     </insert>
 
     <delete id="removeFcmToken" parameterType="String"> 
-        DELETE FROM fcm WHERE USER_ID = #{userId}; 
+        DELETE FROM fcm WHERE USER_ID = #{userId}
     </delete>
 
     <select id="getKeywordAll" resultType="KeywordDto">
-        SELECT * FROM keyword;
+        SELECT * FROM keyword
     </select>
 
     <select id="getKeywordByUserId" parameterType="String" resultType="KeywordDto">
-        SELECT * FROM keyword WHERE USER_ID = #{user_id};
+        SELECT * FROM keyword WHERE USER_ID = #{user_id}
     </select>
 
     <insert id="registKeyword" parameterType="map">
-        INSERT INTO keyword (USER_ID, KEYWORD_NAME) VALUES(#{userId}, #{keywordName});
+        INSERT INTO keyword (USER_ID, KEYWORD_NAME) VALUES(#{userId}, #{keywordName})
     </insert>
 
     <delete id="removeKeyword" parameterType="map"> 
-        DELETE FROM keyword WHERE USER_ID = #{userId} AND KEYWORD_NAME = #{keywordName}; 
+        DELETE FROM keyword WHERE USER_ID = #{userId} AND KEYWORD_NAME = #{keywordName}
     </delete>
+
+    <select id="getNotiBasketAll" resultType="NotiBasketDto">
+        SELECT * FROM noti_basket WHERE SEND_YN = 0;
+    </select>
+
+    <insert id="registNoti" parameterType="NotiBasketDto">
+        INSERT IGNORE INTO noti_basket(TITLE, USER_ID, ADDRESS) VALUES(#{title}, #{userId}, #{address})
+    </insert>
 </mapper>

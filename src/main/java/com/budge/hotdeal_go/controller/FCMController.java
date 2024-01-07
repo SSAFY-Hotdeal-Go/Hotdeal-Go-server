@@ -1,11 +1,8 @@
 package com.budge.hotdeal_go.controller;
 
-import java.io.IOException;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.budge.hotdeal_go.model.dto.KeywordDto;
 import com.budge.hotdeal_go.model.service.FCMService;
 import com.budge.hotdeal_go.model.service.FirebaseService;
-import com.google.auth.oauth2.GoogleCredentials;
+import com.google.firebase.messaging.FirebaseMessagingException;
 
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -37,7 +34,7 @@ public class FCMController {
     @PostMapping("/sendNotification")
     public void doPostNoti(
             @RequestParam(required = true) @ApiParam(value = "보낼 사용자 ID") String userId,
-            @RequestParam(required = true) @ApiParam(value = "보낼 내용") String content) throws SQLException {
+            @RequestParam(required = true) @ApiParam(value = "보낼 내용") String content) throws SQLException, FirebaseMessagingException {
 
         String fcmToken = fcmService.getFcmToken(userId);
         String response = firebaseService.sendNotification(content, fcmToken);

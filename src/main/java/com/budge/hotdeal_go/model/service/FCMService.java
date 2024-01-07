@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import com.budge.hotdeal_go.model.dto.KeywordDto;
+import com.budge.hotdeal_go.model.dto.NotiBasketDto;
 
 public interface FCMService {
     public String getFcmToken(String userId) throws SQLException;
@@ -19,4 +20,8 @@ public interface FCMService {
     public void registKeyword(String userId, String keywordName) throws SQLException;
 
     public void removeKeyword(String userId, String keywordName) throws SQLException;
+
+    public void registNoti(NotiBasketDto dto) throws SQLException;
+
+    public List<NotiBasketDto> getNotiBasketAll() throws SQLException;
 }
